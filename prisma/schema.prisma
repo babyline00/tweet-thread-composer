@@ -1,0 +1,52 @@
+// Tweet/Thread Composer with Tone — Prisma schema (SQLite)
+//
+// The schema keeps two models:
+//   * Tone   — a persisted mirror of the 6 hardcoded tone presets in
+//              `src/lib/tones.ts`. Seeded lazily from the API so the UI's
+//              "tone badge" can join to a real row.
+//   * Draft  — the queue. Each draft stores the full thread as a JSON array
+//              of strings (`tweets`), the assigned tone, the computed
+//              hook score and engagement prediction snapshot, and an
+//              optional scheduled time. Status is a plain string enum:
+//              "draft" | "scheduled" | "posted".
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Tone {
+  id          String @id @default(cuid())
+  name        String @unique
+  label       String
+  description String?
+  // JSON-stringified string[] of 3 example tweets
+  examples    String
+  // JSON-stringified ToneAttributes (sentenceLength, vocabulary, emojis, hookPatterns)
+  attributes  String
+
+  drafts Draft[]
+}
+
+model Draft {
+  id                   String    @id @default(cuid())
+  title                String
+  // JSON-stringified string[] — the thread body, one tweet per item
+  tweets               String
+  toneId               String?
+  tone                 Tone?     @relation(fields: [toneId], references: [id], onDelete: SetNull)
+  hookScore            Int       @default(0)
+  // JSON-stringified EngagementPrediction { predictedLikes, predictedRetweets, confidence, factors }
+  engagementPrediction String?
+  status               String    @default("draft") // "draft" | "scheduled" | "posted"
+  scheduledAt          DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([status])
+  @@index([toneId])
+}
